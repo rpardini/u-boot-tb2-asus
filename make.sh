@@ -12,8 +12,13 @@ CMD_ARGS=$1
 
 ########################################### User can modify #############################################
 RKBIN_TOOLS=../rkbin/tools
-CROSS_COMPILE_ARM32=../prebuilts/gcc/linux-x86/arm/gcc-linaro-6.3.1-2017.05-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-
-CROSS_COMPILE_ARM64=../prebuilts/gcc/linux-x86/aarch64/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-
+#CROSS_COMPILE_ARM32=../prebuilts/gcc/linux-x86/arm/gcc-linaro-6.3.1-2017.05-x86_64_arm-linux-gnueabihf/bin/arm-linux-gnueabihf-
+#CROSS_COMPILE_ARM64=../prebuilts/gcc/linux-x86/aarch64/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/bin/aarch64-linux-gnu-
+#CROSS_COMPILE_ARM32="" #../prebuilts/gcc/linux-x86/arm/gcc-linaro-6.3.1-2017.05-x86_64_arm-linux-gnueabihf/bin
+CROSS_COMPILE_ARM64="aarch64-linux-gnu-" #../prebuilts/gcc/linux-x86/aarch64/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/bin
+export KCFLAGS="-fdiagnostics-color=always -Wno-error=address-of-packed-member -Wno-error=maybe-uninitialized"
+export CFLAGS="-fdiagnostics-color=always -Wno-error=address-of-packed-member -Wno-error=maybe-uninitialized"
+
 ########################################### User not touch #############################################
 # Declare global INI file searching index name for every chip, update in select_chip_info()
 RKCHIP=
@@ -252,20 +257,6 @@ function process_args()
 
 function select_toolchain()
 {
-	# If no outer CROSS_COMPILE, look for it from CC_FILE.
-	if [ "${ARG_COMPILE}" != "y" ]; then
-		if [ -f ${CC_FILE} ]; then
-			CROSS_COMPILE_ARM32=`cat ${CC_FILE}`
-			CROSS_COMPILE_ARM64=`cat ${CC_FILE}`
-		else
-			if grep -q '^CONFIG_ARM64=y' .config ; then
-				CROSS_COMPILE_ARM64=$(cd `dirname ${CROSS_COMPILE_ARM64}`; pwd)"/aarch64-linux-gnu-"
-			else
-				CROSS_COMPILE_ARM32=$(cd `dirname ${CROSS_COMPILE_ARM32}`; pwd)"/arm-linux-gnueabihf-"
-			fi
-		fi
-	fi
-
 	if grep -q '^CONFIG_ARM64=y' .config ; then
 		TOOLCHAIN=${CROSS_COMPILE_ARM64}
 		TOOLCHAIN_NM=${CROSS_COMPILE_ARM64}nm
@@ -283,10 +274,6 @@ function select_toolchain()
 		exit 1
 	fi
 
-	# save to CC_FILE
-	if [ "${ARG_COMPILE}" == "y" ]; then
-		echo "${TOOLCHAIN}" > ${CC_FILE}
-	fi
 }
 
 #
@@ -630,7 +617,7 @@ function pack_uboot_image()
 		echo "ERROR: No CONFIG_SYS_TEXT_BASE for u-boot";
 		exit 1
 	fi
-
+	set -x
 	${SCRIPT_UBOOT} --load ${LOAD_ADDR} ${PLAT_UBOOT_SIZE}
 }
 
@@ -700,8 +687,11 @@ function pack_images()
 		if [ "${PLAT_TYPE}" == "FIT" ]; then
 			pack_fit_image ${ARG_LIST_FIT}
 		else
+			echo "---> PACK pack_uboot_image"
 			pack_uboot_image
+			echo "---> PACK pack_trust_image"
 			pack_trust_image
+			echo "---> PACK pack_loader_image"
 			pack_loader_image
 		fi
 	fi
@@ -726,7 +716,12 @@ select_ini_file
 handle_args_late
 sub_commands
 clean_files
-make PYTHON=python2 CROSS_COMPILE=${TOOLCHAIN} all --jobs=${JOB}
+set -x
+make PYTHON=python2 CROSS_COMPILE=${CROSS_COMPILE_ARM64} all --jobs=${JOB}
+# Hack, copy over the u-boot-built rkbin tools back into the rkbin directory
+# So that we can actually run them on arm64/amd64; the bins in rkbin depend of weird libc6 paths
+cp -v tools/loaderimage ../rkbin/tools/loaderimage
+cp -v tools/trust_merger ../rkbin/tools/trust_merger
+cp -v tools/boot_merger ../rkbin/tools/boot_merger
 pack_images
 finish
-date

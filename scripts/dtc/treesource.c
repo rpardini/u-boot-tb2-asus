@@ -23,7 +23,7 @@
 
 extern FILE *yyin;
 extern int yyparse(void);
-extern YYLTYPE yylloc;
+YYLTYPE yylloc;
 
 struct dt_info *parser_output;
 bool treesource_error;
