@@ -68,8 +68,9 @@ NM_ARM32=arm-linux-gnueabihf-nm
 NM_ARM64=aarch64-linux-gnu-nm
 GCC_ARM32=arm-linux-gnueabihf-
 GCC_ARM64=aarch64-linux-gnu-
-TOOLCHAIN_ARM32=../prebuilts/gcc/linux-x86/arm/gcc-linaro-6.3.1-2017.05-x86_64_arm-linux-gnueabihf/bin
-TOOLCHAIN_ARM64=../prebuilts/gcc/linux-x86/aarch64/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/bin
+TOOLCHAIN_ARM32="" #../prebuilts/gcc/linux-x86/arm/gcc-linaro-6.3.1-2017.05-x86_64_arm-linux-gnueabihf/bin
+TOOLCHAIN_ARM64="" #../prebuilts/gcc/linux-x86/aarch64/gcc-linaro-6.3.1-2017.05-x86_64_aarch64-linux-gnu/bin
+export KCFLAGS="-Wno-error=address-of-packed-member -Wno-error=maybe-uninitialized"
 
 ########################################### User not touch #############################################
 # Declare global INI file searching index name for every chip, update in select_chip_info()
@@ -273,6 +274,13 @@ function process_args()
 
 function select_toolchain()
 {
+			TOOLCHAIN_NM=${NM_ARM64}
+			TOOLCHAIN_GCC=${GCC_ARM64}
+			TOOLCHAIN_OBJDUMP=${OBJ_ARM64}
+			TOOLCHAIN_ADDR2LINE=${ADDR2LINE_ARM64}
+	echo "HACKED toolchain"
+	return 0
+
 	if grep -q '^CONFIG_ARM64=y' .config ; then
 		if [ -d ${TOOLCHAIN_ARM64} ]; then
 			absolute_path=$(cd `dirname ${TOOLCHAIN_ARM64}`; pwd)
@@ -780,6 +788,12 @@ select_ini_file
 handle_args_late
 sub_commands
 clean_files
+set -x
 make PYTHON=python2 CROSS_COMPILE=${TOOLCHAIN_GCC} all --jobs=${JOB}
+# Hack, copy over the u-boot-built rkbin tools back into the rkbin directory
+# So that we can actually run them on arm64/amd64; the bins in rkbin depend of weird libc6 paths
+cp -v tools/loaderimage ../rkbin/tools/loaderimage
+cp -v tools/trust_merger ../rkbin/tools/trust_merger
+cp -v tools/boot_merger ../rkbin/tools/boot_merger
 pack_images
 finish
